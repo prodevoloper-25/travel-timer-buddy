@@ -1,4 +1,3 @@
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -66,7 +65,7 @@
     --ring: 224.3 76.3% 48%;
   }
 }
- 
+
 @layer base {
   * {
     @apply border-border;
@@ -80,3 +79,12 @@
   border-radius: 0.75rem;
 }
 
+.leaflet-container {
+  width: 100%;
+  height: 100%;
+}
+
+.custom-div-icon {
+  background: none;
+  border: none;
+}

@@ -1,6 +1,5 @@
 
 import { useEffect, useState, useRef } from "react";
-import { Loader } from "@googlemaps/js-api-loader";
 import useSound from "use-sound";
 import { Button } from "@/components/ui/button";
 import {
@@ -14,18 +13,14 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { motion, AnimatePresence } from "framer-motion";
-
-declare global {
-  interface Window {
-    google: typeof google;
-  }
-}
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
 
 const Index = () => {
   const mapRef = useRef<HTMLDivElement>(null);
-  const map = useRef<google.maps.Map | null>(null);
-  const marker = useRef<google.maps.Marker | null>(null);
-  const destinationMarker = useRef<google.maps.Marker | null>(null);
+  const map = useRef<L.Map | null>(null);
+  const marker = useRef<L.Marker | null>(null);
+  const destinationMarker = useRef<L.Marker | null>(null);
   const watchId = useRef<number | null>(null);
   
   const [currentLocation, setCurrentLocation] = useState<{lat: number; lng: number} | null>(null);
@@ -37,109 +32,95 @@ const Index = () => {
   const { toast } = useToast();
   const [playAlarm] = useSound('/alarm.mp3', { volume: 1 });
 
-  useEffect(() => {
-    // Initialize Google Maps
-    const loader = new Loader({
-      apiKey: "YOUR_GOOGLE_MAPS_API_KEY",
-      version: "weekly",
-      libraries: ["places", "geometry"]
+  // Custom icon for markers
+  const createIcon = (color: string) => {
+    return L.divIcon({
+      className: 'custom-div-icon',
+      html: `<div style="background-color: ${color}; width: 16px; height: 16px; border-radius: 50%; border: 2px solid white;"></div>`,
+      iconSize: [16, 16],
     });
+  };
 
-    loader.load().then(() => {
-      if (mapRef.current) {
-        map.current = new google.maps.Map(mapRef.current, {
-          center: { lat: 51.5074, lng: -0.1278 },
-          zoom: 13,
-          styles: [
-            {
-              featureType: "all",
-              elementType: "labels.text.fill",
-              stylers: [{ color: "#000000" }]
-            },
-            {
-              featureType: "all",
-              elementType: "labels.text.stroke",
-              stylers: [{ visibility: "on" }, { color: "#ffffff" }, { weight: 2 }]
+  useEffect(() => {
+    if (mapRef.current && !map.current) {
+      // Initialize map
+      map.current = L.map(mapRef.current).setView([51.5074, -0.1278], 13);
+      
+      // Add OpenStreetMap tiles
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors'
+      }).addTo(map.current);
+
+      // Add click listener for setting destination
+      map.current.on('click', (e: L.LeafletMouseEvent) => {
+        if (!isMonitoring) {
+          const newDest = { lat: e.latlng.lat, lng: e.latlng.lng };
+          setDestination(newDest);
+
+          if (destinationMarker.current) {
+            destinationMarker.current.remove();
+          }
+
+          destinationMarker.current = L.marker(e.latlng, {
+            icon: createIcon('#22C55E')
+          }).addTo(map.current!);
+        }
+      });
+
+      // Get current location
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            const pos = {
+              lat: position.coords.latitude,
+              lng: position.coords.longitude,
+            };
+            setCurrentLocation(pos);
+            map.current?.setView([pos.lat, pos.lng], 13);
+
+            if (marker.current) {
+              marker.current.remove();
             }
-          ],
-          disableDefaultUI: true,
-          zoomControl: true,
-        });
 
-        // Add click listener for setting destination
-        map.current.addListener("click", (e: google.maps.MapMouseEvent) => {
-          if (!isMonitoring && e.latLng) {
-            setDestination({
-              lat: e.latLng.lat(),
-              lng: e.latLng.lng()
-            });
-
-            if (destinationMarker.current) {
-              destinationMarker.current.setMap(null);
-            }
-
-            destinationMarker.current = new google.maps.Marker({
-              position: e.latLng,
-              map: map.current,
-              icon: {
-                path: google.maps.SymbolPath.CIRCLE,
-                scale: 10,
-                fillColor: "#22C55E",
-                fillOpacity: 1,
-                strokeColor: "#ffffff",
-                strokeWeight: 2,
-              },
-              animation: google.maps.Animation.DROP,
+            marker.current = L.marker([pos.lat, pos.lng], {
+              icon: createIcon('#3B82F6')
+            }).addTo(map.current!);
+          },
+          () => {
+            toast({
+              title: "Error",
+              description: "Unable to get your location",
+              variant: "destructive",
             });
           }
-        });
-
-        // Get current location
-        if (navigator.geolocation) {
-          navigator.geolocation.getCurrentPosition(
-            (position) => {
-              const pos = {
-                lat: position.coords.latitude,
-                lng: position.coords.longitude,
-              };
-              setCurrentLocation(pos);
-              map.current?.setCenter(pos);
-
-              if (marker.current) {
-                marker.current.setMap(null);
-              }
-
-              marker.current = new google.maps.Marker({
-                position: pos,
-                map: map.current,
-                icon: {
-                  path: google.maps.SymbolPath.CIRCLE,
-                  scale: 8,
-                  fillColor: "#3B82F6",
-                  fillOpacity: 1,
-                  strokeColor: "#ffffff",
-                  strokeWeight: 2,
-                },
-              });
-            },
-            () => {
-              toast({
-                title: "Error",
-                description: "Unable to get your location",
-                variant: "destructive",
-              });
-            }
-          );
-        }
+        );
       }
-    });
+    }
 
     return () => {
       if (watchId.current) {
         navigator.geolocation.clearWatch(watchId.current);
       }
+      if (map.current) {
+        map.current.remove();
+      }
     };
-  }, [toast]);
+  }, [toast, isMonitoring]);
+
+  const calculateDistance = (pos1: {lat: number; lng: number}, pos2: {lat: number; lng: number}) => {
+    const R = 6371e3; // Earth's radius in meters
+    const φ1 = pos1.lat * Math.PI/180;
+    const φ2 = pos2.lat * Math.PI/180;
+    const Δφ = (pos2.lat - pos1.lat) * Math.PI/180;
+    const Δλ = (pos2.lng - pos1.lng) * Math.PI/180;
+
+    const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
+              Math.cos(φ1) * Math.cos(φ2) *
+              Math.sin(Δλ/2) * Math.sin(Δλ/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+
+    return R * c; // Distance in meters
+  };
 
   const startMonitoring = () => {
     if (!destination) {
@@ -166,14 +147,11 @@ const Index = () => {
         setCurrentLocation(pos);
         
         if (marker.current) {
-          marker.current.setPosition(pos);
+          marker.current.setLatLng([pos.lat, pos.lng]);
         }
 
         if (destination) {
-          const dist = google.maps.geometry.spherical.computeDistanceBetween(
-            new google.maps.LatLng(pos.lat, pos.lng),
-            new google.maps.LatLng(destination.lat, destination.lng)
-          );
+          const dist = calculateDistance(pos, destination);
           setDistance(dist / 1000); // Convert to kilometers
 
           if (dist <= 1000 && !isAlarming) { // 1000 meters = 1 km
@@ -204,7 +182,7 @@ const Index = () => {
       navigator.geolocation.clearWatch(watchId.current);
     }
     if (destinationMarker.current) {
-      destinationMarker.current.setMap(null);
+      destinationMarker.current.remove();
     }
     setDestination(null);
     setDistance(null);
