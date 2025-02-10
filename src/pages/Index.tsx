@@ -1,3 +1,4 @@
+
 import { useEffect, useState, useRef } from "react";
 import useSound from "use-sound";
 import { Button } from "@/components/ui/button";
@@ -239,77 +240,77 @@ const Index = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="relative w-full h-screen">
-        {/* Map Container */}
-        <div ref={mapRef} className="w-full h-full" />
-        
-        {/* Control Panel */}
-        <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 w-[90%] max-w-md">
-          <Card className="backdrop-blur-md bg-white/90 shadow-lg border-0">
-            <CardHeader className="space-y-1">
-              <form onSubmit={handleSearch} className="flex gap-2 mb-2">
-                <Input
-                  type="text"
-                  placeholder="Search for a location..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="flex-1"
-                />
-                <Button type="submit" variant="secondary">Search</Button>
-              </form>
-              <div className="flex items-center gap-2">
+    <div className="min-h-screen bg-gray-50 relative p-4">
+      {/* Map Container - now with height restriction */}
+      <div className="absolute inset-0 z-0" style={{ height: "calc(100vh - 200px)" }}>
+        <div ref={mapRef} className="w-full h-full rounded-lg shadow-lg" />
+      </div>
+      
+      {/* Control Panel - positioned at the bottom with higher z-index */}
+      <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 w-[90%] max-w-md z-10">
+        <Card className="backdrop-blur-md bg-white/90 shadow-lg border-0">
+          <CardHeader className="space-y-1">
+            <form onSubmit={handleSearch} className="flex gap-2 mb-2">
+              <Input
+                type="text"
+                placeholder="Search for a location..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="flex-1"
+              />
+              <Button type="submit" variant="secondary">Search</Button>
+            </form>
+            <div className="flex items-center gap-2">
+              <Badge variant="outline" className="bg-white">
+                {isMonitoring ? "Active" : "Ready"}
+              </Badge>
+              {distance !== null && (
                 <Badge variant="outline" className="bg-white">
-                  {isMonitoring ? "Active" : "Ready"}
+                  {distance.toFixed(1)} km away
                 </Badge>
-                {distance !== null && (
-                  <Badge variant="outline" className="bg-white">
-                    {distance.toFixed(1)} km away
-                  </Badge>
-                )}
-              </div>
-              <CardTitle className="text-2xl">Travel Timer</CardTitle>
-              <CardDescription>
-                {!destination
-                  ? "Search or tap the map to set your destination"
-                  : isMonitoring
-                  ? "We'll wake you up when you're close"
-                  : "Ready to start monitoring?"}
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {isAlarming ? (
-                <Button
-                  variant="destructive"
-                  className="w-full text-lg py-6"
-                  onClick={stopAlarm}
-                >
-                  Stop Alarm
-                </Button>
-              ) : (
-                <Button
-                  variant="default"
-                  className="w-full text-lg py-6"
-                  onClick={startMonitoring}
-                  disabled={!destination || isMonitoring}
-                >
-                  {isMonitoring ? "Monitoring..." : "Set Alarm"}
-                </Button>
               )}
-            </CardContent>
-            {isMonitoring && (
-              <CardFooter>
-                <Button
-                  variant="ghost"
-                  className="w-full"
-                  onClick={stopAlarm}
-                >
-                  Cancel
-                </Button>
-              </CardFooter>
+            </div>
+            <CardTitle className="text-2xl">Travel Timer</CardTitle>
+            <CardDescription>
+              {!destination
+                ? "Search or tap the map to set your destination"
+                : isMonitoring
+                ? "We'll wake you up when you're close"
+                : "Ready to start monitoring?"}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {isAlarming ? (
+              <Button
+                variant="destructive"
+                className="w-full text-lg py-6"
+                onClick={stopAlarm}
+              >
+                Stop Alarm
+              </Button>
+            ) : (
+              <Button
+                variant="default"
+                className="w-full text-lg py-6"
+                onClick={startMonitoring}
+                disabled={!destination || isMonitoring}
+              >
+                {isMonitoring ? "Monitoring..." : "Set Alarm"}
+              </Button>
             )}
-          </Card>
-        </div>
+          </CardContent>
+          {isMonitoring && (
+            <CardFooter>
+              <Button
+                variant="ghost"
+                className="w-full"
+                onClick={stopAlarm}
+              >
+                Cancel
+              </Button>
+            </CardFooter>
+          )}
+        </Card>
       </div>
     </div>
   );
