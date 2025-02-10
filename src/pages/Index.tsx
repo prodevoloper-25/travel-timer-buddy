@@ -22,6 +22,7 @@ const Index = () => {
   const map = useRef<L.Map | null>(null);
   const marker = useRef<L.Marker | null>(null);
   const destinationMarker = useRef<L.Marker | null>(null);
+  const circle = useRef<L.Circle | null>(null);
   const watchId = useRef<number | null>(null);
   const searchInput = useRef<HTMLInputElement>(null);
   
@@ -31,6 +32,7 @@ const Index = () => {
   const [isMonitoring, setIsMonitoring] = useState(false);
   const [isAlarming, setIsAlarming] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<any[]>([]);
   
   const { toast } = useToast();
   const [playAlarm] = useSound('/alarm.mp3', { volume: 1 });
@@ -70,8 +72,9 @@ const Index = () => {
           icon: createIcon('#22C55E')
         }).addTo(map.current!);
         
-        // Clear search input
+        // Clear search input and results
         setSearchQuery("");
+        setSearchResults([]);
       } else {
         toast({
           title: "Location not found",
@@ -85,6 +88,23 @@ const Index = () => {
         description: "Unable to search for location",
         variant: "destructive",
       });
+    }
+  };
+
+  // Handle search suggestions
+  const handleSearchInput = async (value: string) => {
+    setSearchQuery(value);
+    if (value.length < 3) {
+      setSearchResults([]);
+      return;
+    }
+
+    try {
+      const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(value)}`);
+      const data = await response.json();
+      setSearchResults(data.slice(0, 5)); // Limit to 5 results
+    } catch (error) {
+      console.error('Failed to fetch search suggestions:', error);
     }
   };
 
@@ -131,6 +151,18 @@ const Index = () => {
 
             marker.current = L.marker([pos.lat, pos.lng], {
               icon: createIcon('#3B82F6')
+            }).addTo(map.current!);
+
+            // Add circle around current location
+            if (circle.current) {
+              circle.current.remove();
+            }
+
+            circle.current = L.circle([pos.lat, pos.lng], {
+              color: '#3B82F6',
+              fillColor: '#3B82F6',
+              fillOpacity: 0.1,
+              radius: 1000 // 1km radius
             }).addTo(map.current!);
           },
           () => {
@@ -241,25 +273,54 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 relative p-4">
-      {/* Map Container - now with height restriction */}
+      {/* Map Container */}
       <div className="absolute inset-0 z-0" style={{ height: "calc(100vh - 200px)" }}>
         <div ref={mapRef} className="w-full h-full rounded-lg shadow-lg" />
       </div>
       
-      {/* Control Panel - positioned at the bottom with higher z-index */}
+      {/* Control Panel */}
       <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 w-[90%] max-w-md z-10">
         <Card className="backdrop-blur-md bg-white/90 shadow-lg border-0">
           <CardHeader className="space-y-1">
-            <form onSubmit={handleSearch} className="flex gap-2 mb-2">
-              <Input
-                type="text"
-                placeholder="Search for a location..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="flex-1"
-              />
-              <Button type="submit" variant="secondary">Search</Button>
-            </form>
+            <div className="relative">
+              <form onSubmit={handleSearch} className="flex gap-2 mb-2">
+                <Input
+                  type="text"
+                  placeholder="Search for a location..."
+                  value={searchQuery}
+                  onChange={(e) => handleSearchInput(e.target.value)}
+                  className="flex-1"
+                />
+                <Button type="submit" variant="secondary">Search</Button>
+              </form>
+              {/* Search Results Dropdown */}
+              {searchResults.length > 0 && (
+                <div className="absolute w-full bg-white shadow-lg rounded-md mt-1 z-50">
+                  {searchResults.map((result, index) => (
+                    <div
+                      key={index}
+                      className="p-2 hover:bg-gray-100 cursor-pointer"
+                      onClick={() => {
+                        setSearchQuery(result.display_name);
+                        const latNum = parseFloat(result.lat);
+                        const lonNum = parseFloat(result.lon);
+                        map.current?.setView([latNum, lonNum], 13);
+                        setDestination({ lat: latNum, lng: lonNum });
+                        if (destinationMarker.current) {
+                          destinationMarker.current.remove();
+                        }
+                        destinationMarker.current = L.marker([latNum, lonNum], {
+                          icon: createIcon('#22C55E')
+                        }).addTo(map.current!);
+                        setSearchResults([]);
+                      }}
+                    >
+                      {result.display_name}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
             <div className="flex items-center gap-2">
               <Badge variant="outline" className="bg-white">
                 {isMonitoring ? "Active" : "Ready"}
@@ -317,3 +378,4 @@ const Index = () => {
 };
 
 export default Index;
+
