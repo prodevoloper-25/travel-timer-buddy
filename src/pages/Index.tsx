@@ -15,6 +15,12 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { motion, AnimatePresence } from "framer-motion";
 
+declare global {
+  interface Window {
+    google: typeof google;
+  }
+}
+
 const Index = () => {
   const mapRef = useRef<HTMLDivElement>(null);
   const map = useRef<google.maps.Map | null>(null);
