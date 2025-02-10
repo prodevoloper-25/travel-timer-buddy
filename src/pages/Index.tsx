@@ -1,7 +1,7 @@
-
 import { useEffect, useState, useRef } from "react";
 import useSound from "use-sound";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Card,
   CardContent,
@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
@@ -22,12 +22,14 @@ const Index = () => {
   const marker = useRef<L.Marker | null>(null);
   const destinationMarker = useRef<L.Marker | null>(null);
   const watchId = useRef<number | null>(null);
+  const searchInput = useRef<HTMLInputElement>(null);
   
   const [currentLocation, setCurrentLocation] = useState<{lat: number; lng: number} | null>(null);
   const [destination, setDestination] = useState<{lat: number; lng: number} | null>(null);
   const [distance, setDistance] = useState<number | null>(null);
   const [isMonitoring, setIsMonitoring] = useState(false);
   const [isAlarming, setIsAlarming] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
   
   const { toast } = useToast();
   const [playAlarm] = useSound('/alarm.mp3', { volume: 1 });
@@ -39,6 +41,50 @@ const Index = () => {
       html: `<div style="background-color: ${color}; width: 16px; height: 16px; border-radius: 50%; border: 2px solid white;"></div>`,
       iconSize: [16, 16],
     });
+  };
+
+  const handleSearch = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!searchQuery.trim()) return;
+
+    try {
+      const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}`);
+      const data = await response.json();
+      
+      if (data && data[0]) {
+        const { lat, lon } = data[0];
+        const latNum = parseFloat(lat);
+        const lonNum = parseFloat(lon);
+        
+        map.current?.setView([latNum, lonNum], 13);
+        
+        // Set this location as destination
+        setDestination({ lat: latNum, lng: lonNum });
+        
+        if (destinationMarker.current) {
+          destinationMarker.current.remove();
+        }
+        
+        destinationMarker.current = L.marker([latNum, lonNum], {
+          icon: createIcon('#22C55E')
+        }).addTo(map.current!);
+        
+        // Clear search input
+        setSearchQuery("");
+      } else {
+        toast({
+          title: "Location not found",
+          description: "Please try a different search term",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Search failed",
+        description: "Unable to search for location",
+        variant: "destructive",
+      });
+    }
   };
 
   useEffect(() => {
@@ -199,68 +245,71 @@ const Index = () => {
         <div ref={mapRef} className="w-full h-full" />
         
         {/* Control Panel */}
-        <AnimatePresence>
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 20 }}
-            className="absolute bottom-8 left-1/2 transform -translate-x-1/2 w-[90%] max-w-md"
-          >
-            <Card className="backdrop-blur-md bg-white/90 shadow-lg border-0">
-              <CardHeader className="space-y-1">
-                <div className="flex items-center gap-2">
+        <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 w-[90%] max-w-md">
+          <Card className="backdrop-blur-md bg-white/90 shadow-lg border-0">
+            <CardHeader className="space-y-1">
+              <form onSubmit={handleSearch} className="flex gap-2 mb-2">
+                <Input
+                  type="text"
+                  placeholder="Search for a location..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="flex-1"
+                />
+                <Button type="submit" variant="secondary">Search</Button>
+              </form>
+              <div className="flex items-center gap-2">
+                <Badge variant="outline" className="bg-white">
+                  {isMonitoring ? "Active" : "Ready"}
+                </Badge>
+                {distance !== null && (
                   <Badge variant="outline" className="bg-white">
-                    {isMonitoring ? "Active" : "Ready"}
+                    {distance.toFixed(1)} km away
                   </Badge>
-                  {distance !== null && (
-                    <Badge variant="outline" className="bg-white">
-                      {distance.toFixed(1)} km away
-                    </Badge>
-                  )}
-                </div>
-                <CardTitle className="text-2xl">Travel Timer</CardTitle>
-                <CardDescription>
-                  {!destination
-                    ? "Tap the map to set your destination"
-                    : isMonitoring
-                    ? "We'll wake you up when you're close"
-                    : "Ready to start monitoring?"}
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {isAlarming ? (
-                  <Button
-                    variant="destructive"
-                    className="w-full text-lg py-6"
-                    onClick={stopAlarm}
-                  >
-                    Stop Alarm
-                  </Button>
-                ) : (
-                  <Button
-                    variant="default"
-                    className="w-full text-lg py-6"
-                    onClick={startMonitoring}
-                    disabled={!destination || isMonitoring}
-                  >
-                    {isMonitoring ? "Monitoring..." : "Set Alarm"}
-                  </Button>
                 )}
-              </CardContent>
-              {isMonitoring && (
-                <CardFooter>
-                  <Button
-                    variant="ghost"
-                    className="w-full"
-                    onClick={stopAlarm}
-                  >
-                    Cancel
-                  </Button>
-                </CardFooter>
+              </div>
+              <CardTitle className="text-2xl">Travel Timer</CardTitle>
+              <CardDescription>
+                {!destination
+                  ? "Search or tap the map to set your destination"
+                  : isMonitoring
+                  ? "We'll wake you up when you're close"
+                  : "Ready to start monitoring?"}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {isAlarming ? (
+                <Button
+                  variant="destructive"
+                  className="w-full text-lg py-6"
+                  onClick={stopAlarm}
+                >
+                  Stop Alarm
+                </Button>
+              ) : (
+                <Button
+                  variant="default"
+                  className="w-full text-lg py-6"
+                  onClick={startMonitoring}
+                  disabled={!destination || isMonitoring}
+                >
+                  {isMonitoring ? "Monitoring..." : "Set Alarm"}
+                </Button>
               )}
-            </Card>
-          </motion.div>
-        </AnimatePresence>
+            </CardContent>
+            {isMonitoring && (
+              <CardFooter>
+                <Button
+                  variant="ghost"
+                  className="w-full"
+                  onClick={stopAlarm}
+                >
+                  Cancel
+                </Button>
+              </CardFooter>
+            )}
+          </Card>
+        </div>
       </div>
     </div>
   );
