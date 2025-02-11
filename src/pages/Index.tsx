@@ -1,4 +1,3 @@
-
 import { useEffect, useState, useRef } from "react";
 import useSound from "use-sound";
 import { Button } from "@/components/ui/button";
@@ -37,7 +36,6 @@ const Index = () => {
   const { toast } = useToast();
   const [playAlarm] = useSound('/alarm.mp3', { volume: 1 });
 
-  // Custom icon for markers
   const createIcon = (color: string) => {
     return L.divIcon({
       className: 'custom-div-icon',
@@ -61,7 +59,6 @@ const Index = () => {
         
         map.current?.setView([latNum, lonNum], 13);
         
-        // Set this location as destination
         setDestination({ lat: latNum, lng: lonNum });
         
         if (destinationMarker.current) {
@@ -72,7 +69,6 @@ const Index = () => {
           icon: createIcon('#22C55E')
         }).addTo(map.current!);
         
-        // Clear search input and results
         setSearchQuery("");
         setSearchResults([]);
       } else {
@@ -91,7 +87,6 @@ const Index = () => {
     }
   };
 
-  // Handle search suggestions
   const handleSearchInput = async (value: string) => {
     setSearchQuery(value);
     if (value.length < 3) {
@@ -110,15 +105,12 @@ const Index = () => {
 
   useEffect(() => {
     if (mapRef.current && !map.current) {
-      // Initialize map
       map.current = L.map(mapRef.current).setView([51.5074, -0.1278], 13);
       
-      // Add OpenStreetMap tiles
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '© OpenStreetMap contributors'
       }).addTo(map.current);
 
-      // Add click listener for setting destination
       map.current.on('click', (e: L.LeafletMouseEvent) => {
         if (!isMonitoring) {
           const newDest = { lat: e.latlng.lat, lng: e.latlng.lng };
@@ -134,46 +126,77 @@ const Index = () => {
         }
       });
 
-      // Get current location
-      if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(
-          (position) => {
-            const pos = {
-              lat: position.coords.latitude,
-              lng: position.coords.longitude,
-            };
-            setCurrentLocation(pos);
-            map.current?.setView([pos.lat, pos.lng], 13);
-
-            if (marker.current) {
-              marker.current.remove();
-            }
-
-            marker.current = L.marker([pos.lat, pos.lng], {
-              icon: createIcon('#3B82F6')
-            }).addTo(map.current!);
-
-            // Add circle around current location
-            if (circle.current) {
-              circle.current.remove();
-            }
-
-            circle.current = L.circle([pos.lat, pos.lng], {
-              color: '#3B82F6',
-              fillColor: '#3B82F6',
-              fillOpacity: 0.1,
-              radius: 1000 // 1km radius
-            }).addTo(map.current!);
-          },
-          () => {
-            toast({
-              title: "Error",
-              description: "Unable to get your location",
-              variant: "destructive",
-            });
-          }
-        );
+      if (!navigator.geolocation) {
+        toast({
+          title: "Geolocation not supported",
+          description: "Your browser doesn't support location services. Please use the search feature instead.",
+          variant: "destructive",
+        });
+        return;
       }
+
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const pos = {
+            lat: position.coords.latitude,
+            lng: position.coords.longitude,
+          };
+          setCurrentLocation(pos);
+          map.current?.setView([pos.lat, pos.lng], 13);
+
+          if (marker.current) {
+            marker.current.remove();
+          }
+
+          marker.current = L.marker([pos.lat, pos.lng], {
+            icon: createIcon('#3B82F6')
+          }).addTo(map.current!);
+
+          if (circle.current) {
+            circle.current.remove();
+          }
+
+          circle.current = L.circle([pos.lat, pos.lng], {
+            color: '#3B82F6',
+            fillColor: '#3B82F6',
+            fillOpacity: 0.1,
+            radius: 1000 // 1km radius
+          }).addTo(map.current!);
+
+          toast({
+            title: "Location found",
+            description: "Successfully retrieved your location",
+          });
+        },
+        (error) => {
+          let errorMessage = "Unable to get your location. ";
+          
+          switch (error.code) {
+            case error.PERMISSION_DENIED:
+              errorMessage += "Please enable location services in your browser settings.";
+              break;
+            case error.POSITION_UNAVAILABLE:
+              errorMessage += "Location information is unavailable.";
+              break;
+            case error.TIMEOUT:
+              errorMessage += "Location request timed out.";
+              break;
+            default:
+              errorMessage += "An unknown error occurred.";
+          }
+          
+          toast({
+            title: "Location Error",
+            description: errorMessage,
+            variant: "destructive",
+          });
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 0
+        }
+      );
     }
 
     return () => {
@@ -273,12 +296,10 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 relative p-4">
-      {/* Map Container */}
       <div className="absolute inset-0 z-0" style={{ height: "calc(100vh - 200px)" }}>
         <div ref={mapRef} className="w-full h-full rounded-lg shadow-lg" />
       </div>
       
-      {/* Control Panel */}
       <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 w-[90%] max-w-md z-10">
         <Card className="backdrop-blur-md bg-white/90 shadow-lg border-0">
           <CardHeader className="space-y-1">
@@ -293,7 +314,6 @@ const Index = () => {
                 />
                 <Button type="submit" variant="secondary">Search</Button>
               </form>
-              {/* Search Results Dropdown */}
               {searchResults.length > 0 && (
                 <div className="absolute w-full bg-white shadow-lg rounded-md mt-1 z-50">
                   {searchResults.map((result, index) => (
@@ -378,4 +398,3 @@ const Index = () => {
 };
 
 export default Index;
-
