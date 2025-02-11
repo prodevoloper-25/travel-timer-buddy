@@ -49,7 +49,19 @@ const Index = () => {
     if (!searchQuery.trim()) return;
 
     try {
-      const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}`);
+      let searchUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery.toLowerCase())}`;
+      if (currentLocation) {
+        const delta = 0.9; // roughly 100km
+        const viewbox = [
+          currentLocation.lng - delta,
+          currentLocation.lat - delta,
+          currentLocation.lng + delta,
+          currentLocation.lat + delta
+        ].join(',');
+        searchUrl += `&viewbox=${viewbox}&bounded=1`;
+      }
+
+      const response = await fetch(searchUrl);
       const data = await response.json();
       
       if (data && data[0]) {
@@ -58,7 +70,6 @@ const Index = () => {
         const lonNum = parseFloat(lon);
         
         map.current?.setView([latNum, lonNum], 13);
-        
         setDestination({ lat: latNum, lng: lonNum });
         
         if (destinationMarker.current) {
@@ -88,19 +99,126 @@ const Index = () => {
   };
 
   const handleSearchInput = async (value: string) => {
+    const searchValue = value.toLowerCase();
     setSearchQuery(value);
-    if (value.length < 3) {
+    if (searchValue.length < 3) {
       setSearchResults([]);
       return;
     }
 
     try {
-      const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(value)}`);
+      let searchUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchValue)}`;
+      if (currentLocation) {
+        const delta = 0.9; // roughly 100km
+        const viewbox = [
+          currentLocation.lng - delta,
+          currentLocation.lat - delta,
+          currentLocation.lng + delta,
+          currentLocation.lat + delta
+        ].join(',');
+        searchUrl += `&viewbox=${viewbox}&bounded=1`;
+      }
+
+      const response = await fetch(searchUrl);
       const data = await response.json();
-      setSearchResults(data.slice(0, 5)); // Limit to 5 results
+      
+      if (currentLocation) {
+        data.sort((a: any, b: any) => {
+          const distA = calculateDistance(currentLocation, { lat: parseFloat(a.lat), lng: parseFloat(a.lon) });
+          const distB = calculateDistance(currentLocation, { lat: parseFloat(b.lat), lng: parseFloat(b.lon) });
+          return distA - distB;
+        });
+      }
+      
+      setSearchResults(data.slice(0, 5)); // Limit to 5 closest results
     } catch (error) {
       console.error('Failed to fetch search suggestions:', error);
     }
+  };
+
+  const calculateDistance = (pos1: {lat: number; lng: number}, pos2: {lat: number; lng: number}) => {
+    const R = 6371e3; // Earth's radius in meters
+    const φ1 = pos1.lat * Math.PI/180;
+    const φ2 = pos2.lat * Math.PI/180;
+    const Δφ = (pos2.lat - pos1.lat) * Math.PI/180;
+    const Δλ = (pos2.lng - pos1.lng) * Math.PI/180;
+
+    const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
+              Math.cos(φ1) * Math.cos(φ2) *
+              Math.sin(Δλ/2) * Math.sin(Δλ/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+
+    return R * c; // Distance in meters
+  };
+
+  const startMonitoring = () => {
+    if (!destination) {
+      toast({
+        title: "No destination set",
+        description: "Please select a destination on the map first",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsMonitoring(true);
+    toast({
+      title: "Alarm Set",
+      description: "We'll wake you up when you're close to your destination",
+    });
+
+    watchId.current = navigator.geolocation.watchPosition(
+      (position) => {
+        const pos = {
+          lat: position.coords.latitude,
+          lng: position.coords.longitude,
+        };
+        setCurrentLocation(pos);
+        
+        if (marker.current) {
+          marker.current.setLatLng([pos.lat, pos.lng]);
+        }
+
+        if (destination) {
+          const dist = calculateDistance(pos, destination);
+          setDistance(dist / 1000); // Convert to kilometers
+
+          if (dist <= 1000 && !isAlarming) { // 1000 meters = 1 km
+            setIsAlarming(true);
+            playAlarm();
+          }
+        }
+      },
+      () => {
+        toast({
+          title: "Error",
+          description: "Unable to track your location",
+          variant: "destructive",
+        });
+      },
+      {
+        enableHighAccuracy: true,
+        maximumAge: 0,
+        timeout: 5000,
+      }
+    );
+  };
+
+  const stopAlarm = () => {
+    setIsAlarming(false);
+    setIsMonitoring(false);
+    if (watchId.current) {
+      navigator.geolocation.clearWatch(watchId.current);
+    }
+    if (destinationMarker.current) {
+      destinationMarker.current.remove();
+    }
+    setDestination(null);
+    setDistance(null);
+    toast({
+      title: "Alarm Stopped",
+      description: "Have a great day!",
+    });
   };
 
   useEffect(() => {
@@ -208,91 +326,6 @@ const Index = () => {
       }
     };
   }, [toast, isMonitoring]);
-
-  const calculateDistance = (pos1: {lat: number; lng: number}, pos2: {lat: number; lng: number}) => {
-    const R = 6371e3; // Earth's radius in meters
-    const φ1 = pos1.lat * Math.PI/180;
-    const φ2 = pos2.lat * Math.PI/180;
-    const Δφ = (pos2.lat - pos1.lat) * Math.PI/180;
-    const Δλ = (pos2.lng - pos1.lng) * Math.PI/180;
-
-    const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
-              Math.cos(φ1) * Math.cos(φ2) *
-              Math.sin(Δλ/2) * Math.sin(Δλ/2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-
-    return R * c; // Distance in meters
-  };
-
-  const startMonitoring = () => {
-    if (!destination) {
-      toast({
-        title: "No destination set",
-        description: "Please select a destination on the map first",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setIsMonitoring(true);
-    toast({
-      title: "Alarm Set",
-      description: "We'll wake you up when you're close to your destination",
-    });
-
-    watchId.current = navigator.geolocation.watchPosition(
-      (position) => {
-        const pos = {
-          lat: position.coords.latitude,
-          lng: position.coords.longitude,
-        };
-        setCurrentLocation(pos);
-        
-        if (marker.current) {
-          marker.current.setLatLng([pos.lat, pos.lng]);
-        }
-
-        if (destination) {
-          const dist = calculateDistance(pos, destination);
-          setDistance(dist / 1000); // Convert to kilometers
-
-          if (dist <= 1000 && !isAlarming) { // 1000 meters = 1 km
-            setIsAlarming(true);
-            playAlarm();
-          }
-        }
-      },
-      () => {
-        toast({
-          title: "Error",
-          description: "Unable to track your location",
-          variant: "destructive",
-        });
-      },
-      {
-        enableHighAccuracy: true,
-        maximumAge: 0,
-        timeout: 5000,
-      }
-    );
-  };
-
-  const stopAlarm = () => {
-    setIsAlarming(false);
-    setIsMonitoring(false);
-    if (watchId.current) {
-      navigator.geolocation.clearWatch(watchId.current);
-    }
-    if (destinationMarker.current) {
-      destinationMarker.current.remove();
-    }
-    setDestination(null);
-    setDistance(null);
-    toast({
-      title: "Alarm Stopped",
-      description: "Have a great day!",
-    });
-  };
 
   return (
     <div className="min-h-screen bg-gray-50 relative p-4">
