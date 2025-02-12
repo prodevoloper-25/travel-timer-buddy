@@ -167,6 +167,11 @@ const Index = () => {
       description: "We'll wake you up when you're close to your destination",
     });
 
+    // Clear any existing watch
+    if (watchId.current) {
+      navigator.geolocation.clearWatch(watchId.current);
+    }
+
     watchId.current = navigator.geolocation.watchPosition(
       (position) => {
         const pos = {
@@ -189,7 +194,7 @@ const Index = () => {
           }
         }
       },
-      () => {
+      (error) => {
         toast({
           title: "Error",
           description: "Unable to track your location",
@@ -210,14 +215,22 @@ const Index = () => {
     if (watchId.current) {
       navigator.geolocation.clearWatch(watchId.current);
     }
-    if (destinationMarker.current) {
-      destinationMarker.current.remove();
-    }
-    setDestination(null);
     setDistance(null);
     toast({
       title: "Alarm Stopped",
       description: "Have a great day!",
+    });
+  };
+
+  const cancelMonitoring = () => {
+    setIsMonitoring(false);
+    if (watchId.current) {
+      navigator.geolocation.clearWatch(watchId.current);
+    }
+    setDistance(null);
+    toast({
+      title: "Monitoring Cancelled",
+      description: "Destination remains set",
     });
   };
 
@@ -418,7 +431,7 @@ const Index = () => {
               <Button
                 variant="ghost"
                 className="w-full"
-                onClick={stopAlarm}
+                onClick={cancelMonitoring}
               >
                 Cancel
               </Button>
