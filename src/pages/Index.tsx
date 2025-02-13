@@ -151,6 +151,40 @@ const Index = () => {
     return R * c; // Distance in meters
   };
 
+  const updateCurrentLocation = (position: GeolocationPosition) => {
+    const pos = {
+      lat: position.coords.latitude,
+      lng: position.coords.longitude,
+    };
+    setCurrentLocation(pos);
+    
+    if (!map.current) return;
+
+    // Update or create the marker
+    if (marker.current) {
+      marker.current.setLatLng([pos.lat, pos.lng]);
+    } else {
+      marker.current = L.marker([pos.lat, pos.lng], {
+        icon: createIcon('#3B82F6')
+      }).addTo(map.current);
+    }
+
+    // Update or create the accuracy circle
+    if (circle.current) {
+      circle.current.setLatLng([pos.lat, pos.lng]);
+    } else {
+      circle.current = L.circle([pos.lat, pos.lng], {
+        color: '#3B82F6',
+        fillColor: '#3B82F6',
+        fillOpacity: 0.1,
+        radius: 1000 // 1km radius
+      }).addTo(map.current);
+    }
+
+    // Center map on current location
+    map.current.setView([pos.lat, pos.lng], map.current.getZoom());
+  };
+
   const startMonitoring = () => {
     if (!destination) {
       toast({
@@ -181,18 +215,13 @@ const Index = () => {
 
     watchId.current = navigator.geolocation.watchPosition(
       (position) => {
-        const pos = {
-          lat: position.coords.latitude,
-          lng: position.coords.longitude,
-        };
-        setCurrentLocation(pos);
-        
-        if (marker.current) {
-          marker.current.setLatLng([pos.lat, pos.lng]);
-        }
+        updateCurrentLocation(position);
 
         if (destination) {
-          const dist = calculateDistance(pos, destination);
+          const dist = calculateDistance(
+            { lat: position.coords.latitude, lng: position.coords.longitude },
+            destination
+          );
           setDistance(dist / 1000); // Convert to kilometers
 
           if (dist <= 1000 && !isAlarming) { // 1000 meters = 1 km
@@ -275,38 +304,7 @@ const Index = () => {
       }
 
       navigator.geolocation.getCurrentPosition(
-        (position) => {
-          const pos = {
-            lat: position.coords.latitude,
-            lng: position.coords.longitude,
-          };
-          setCurrentLocation(pos);
-          map.current?.setView([pos.lat, pos.lng], 13);
-
-          if (marker.current) {
-            marker.current.remove();
-          }
-
-          marker.current = L.marker([pos.lat, pos.lng], {
-            icon: createIcon('#3B82F6')
-          }).addTo(map.current!);
-
-          if (circle.current) {
-            circle.current.remove();
-          }
-
-          circle.current = L.circle([pos.lat, pos.lng], {
-            color: '#3B82F6',
-            fillColor: '#3B82F6',
-            fillOpacity: 0.1,
-            radius: 1000 // 1km radius
-          }).addTo(map.current!);
-
-          toast({
-            title: "Location found",
-            description: "Successfully retrieved your location",
-          });
-        },
+        updateCurrentLocation,
         (error) => {
           let errorMessage = "Unable to get your location. ";
           
