@@ -226,6 +226,7 @@ const Index = () => {
     setIsMonitoring(false);
     if (watchId.current) {
       navigator.geolocation.clearWatch(watchId.current);
+      watchId.current = null;
     }
     setDistance(null);
     toast({
@@ -335,7 +336,11 @@ const Index = () => {
         navigator.geolocation.clearWatch(watchId.current);
       }
       if (map.current) {
+        if (marker.current) marker.current.remove();
+        if (destinationMarker.current) destinationMarker.current.remove();
+        if (circle.current) circle.current.remove();
         map.current.remove();
+        map.current = null;
       }
     };
   }, [toast, isMonitoring]);
