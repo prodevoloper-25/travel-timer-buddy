@@ -34,7 +34,11 @@ const Index = () => {
   const [searchResults, setSearchResults] = useState<any[]>([]);
   
   const { toast } = useToast();
-  const [playAlarm] = useSound('/alarm.mp3', { volume: 1 });
+  const [playAlarm, { stop: stopAlarmSound }] = useSound('/alarm.mp3', { 
+    volume: 1.0,
+    interrupt: true,
+    loop: true
+  });
 
   const createIcon = (color: string) => {
     return L.divIcon({
@@ -226,7 +230,11 @@ const Index = () => {
 
           if (dist <= 1000 && !isAlarming) { // 1000 meters = 1 km
             setIsAlarming(true);
-            playAlarm();
+            playAlarm(); // This will now loop the alarm sound
+            toast({
+              title: "Destination Reached!",
+              description: "You are within 1km of your destination",
+            });
           }
         }
       },
@@ -248,6 +256,7 @@ const Index = () => {
   const stopAlarm = () => {
     setIsAlarming(false);
     setIsMonitoring(false);
+    stopAlarmSound(); // Stop the alarm sound
     if (watchId.current) {
       navigator.geolocation.clearWatch(watchId.current);
     }
