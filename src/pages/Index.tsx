@@ -172,6 +172,13 @@ const Index = () => {
       navigator.geolocation.clearWatch(watchId.current);
     }
 
+    // Make sure destination marker is visible
+    if (!destinationMarker.current && destination) {
+      destinationMarker.current = L.marker([destination.lat, destination.lng], {
+        icon: createIcon('#22C55E')
+      }).addTo(map.current!);
+    }
+
     watchId.current = navigator.geolocation.watchPosition(
       (position) => {
         const pos = {
@@ -343,7 +350,7 @@ const Index = () => {
         map.current = null;
       }
     };
-  }, [toast, isMonitoring]);
+  }, [toast]);  // Removed isMonitoring from dependencies as it was causing marker issues
 
   return (
     <div className="min-h-screen bg-gray-50 relative p-4">
@@ -407,7 +414,7 @@ const Index = () => {
               {!destination
                 ? "Search or tap the map to set your destination"
                 : isMonitoring
-                ? "We'll wake you up when you're close"
+                ? `${distance ? distance.toFixed(1) + " km" : "Calculating..."} from destination`
                 : "Ready to start monitoring?"}
             </CardDescription>
           </CardHeader>
