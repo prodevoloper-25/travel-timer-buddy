@@ -181,7 +181,7 @@ const Index = () => {
         color: '#3B82F6',
         fillColor: '#3B82F6',
         fillOpacity: 0.1,
-        radius: 1000 // 1km radius
+        radius: 350 // Changed from 1000 to 350 meters
       }).addTo(map.current);
     }
 
@@ -228,12 +228,12 @@ const Index = () => {
           );
           setDistance(dist / 1000); // Convert to kilometers
 
-          if (dist <= 1000 && !isAlarming) { // 1000 meters = 1 km
+          if (dist <= 350 && !isAlarming) { // Changed from 1000 to 350 meters
             setIsAlarming(true);
             playAlarm(); // This will now loop the alarm sound
             toast({
               title: "Destination Reached!",
-              description: "You are within 1km of your destination",
+              description: "You are within 350m of your destination",
             });
           }
         }
@@ -357,7 +357,7 @@ const Index = () => {
         map.current = null;
       }
     };
-  }, [toast]);  // Removed isMonitoring from dependencies as it was causing marker issues
+  }, [toast]);
 
   return (
     <div className="min-h-screen bg-gray-50 relative p-4">
